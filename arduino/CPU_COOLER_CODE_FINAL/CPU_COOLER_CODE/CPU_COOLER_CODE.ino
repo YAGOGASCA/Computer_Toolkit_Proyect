@@ -1,5 +1,6 @@
 // CoolCore - CPU cooling simulator
 // Main sketch: thermistor (CPU) + DHT11 (room) + potentiometer (CPU load) + button (emergency stop)
+//              + tilt switch (case open)
 
 #include <DHT.h>
 
@@ -7,11 +8,12 @@
 const int THERMISTOR_PIN = A0;
 const int POT_PIN = A1;
 const int DHT_PIN = 2;
+const int TILT_PIN = 3;          // NEW
 const int BUTTON_PIN = 7;
 
 // ----- Thermistor calibration (use your own measured values) -----
 const float RAW_LOW = 470.0;    // raw value at room temperature
-const float TEMP_LOW = 16.7;    // room temperature in °C
+const float TEMP_LOW = 16.0;    // room temperature in °C
 const float RAW_HIGH = 600.0;   // raw value when holding the thermistor
 const float TEMP_HIGH = 33.0;   // skin temperature in °C
 
@@ -26,6 +28,7 @@ void setup() {
   Serial.begin(9600);
   dht.begin();
   pinMode(BUTTON_PIN, INPUT_PULLUP);   // use the Arduino's internal resistor
+  pinMode(TILT_PIN, INPUT_PULLUP);     // NEW
 }
 
 void loop() {
@@ -43,13 +46,14 @@ void loop() {
     // Inputs
     int load = readLoad();
     int buttonPressed = readButton();
+    int caseOpen = readCaseOpen();      // NEW
 
     if (isnan(roomTemp) || isnan(humidity)) {
       Serial.println("ERROR:DHT");
       return;
     }
 
-    sendData(raw, cpuTemp, roomTemp, humidity, load, buttonPressed);
+    sendData(raw, cpuTemp, roomTemp, humidity, load, buttonPressed, caseOpen);
   }
 }
 
@@ -78,8 +82,16 @@ int readButton() {
   return 0;
 }
 
-// Sends all data in one line: RAW:512;CPU:22.0;AMB:21.0;HUM:45;LOAD:75;BTN:0
-void sendData(int raw, float cpuTemp, float roomTemp, float humidity, int load, int buttonPressed) {
+// NEW: returns 1 if the case is open (switch tilted), 0 if closed (switch upright)
+int readCaseOpen() {
+  if (digitalRead(TILT_PIN) == HIGH) {
+    return 1;
+  }
+  return 0;
+}
+
+// Sends all data in one line: RAW:512;CPU:22.0;AMB:21.0;HUM:45;LOAD:75;BTN:0;CASE:0
+void sendData(int raw, float cpuTemp, float roomTemp, float humidity, int load, int buttonPressed, int caseOpen) {
   Serial.print("RAW:");
   Serial.print(raw);
   Serial.print(";CPU:");
@@ -91,5 +103,7 @@ void sendData(int raw, float cpuTemp, float roomTemp, float humidity, int load, 
   Serial.print(";LOAD:");
   Serial.print(load);
   Serial.print(";BTN:");
-  Serial.println(buttonPressed);
+  Serial.print(buttonPressed);     // changed: print instead of println
+  Serial.print(";CASE:");          // NEW
+  Serial.println(caseOpen);        // NEW: println goes at the very end
 }
